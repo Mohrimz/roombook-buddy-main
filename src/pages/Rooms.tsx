@@ -39,6 +39,16 @@ const equipmentIcons: Record<string, React.ReactNode> = {
   'Catering Available': <Coffee className="h-3 w-3" />,
 };
 
+// Room images mapping
+const roomImages: Record<string, string> = {
+  'Summit Conference Room': '/images/rooms/summit_conference_room_1769663773009.png',
+  'Horizon Meeting Room': '/images/rooms/horizon_meeting_room_1769663800917.png',
+  'Focus Pod A': '/images/rooms/focus_pod_1769663835265.png',
+  'Focus Pod B': '/images/rooms/focus_pod_1769663835265.png',
+  'Executive Boardroom': '/images/rooms/executive_boardroom_1769663862380.png',
+  'Creative Studio': '/images/rooms/creative_studio_1769663888852.png',
+};
+
 const RoomCard: React.FC<{
   room: Room;
   onViewDetails: () => void;
@@ -47,27 +57,47 @@ const RoomCard: React.FC<{
   const { getBookingsForRoom } = useBooking();
   const activeBookings = getBookingsForRoom(room.id);
   const isUnderMaintenance = room.status === 'maintenance';
+  const roomImage = roomImages[room.name] || room.imageUrl;
 
   return (
-    <Card className="shadow-card hover:shadow-card-hover transition-all duration-200 overflow-hidden group">
-      <div className="h-32 bg-gradient-to-br from-primary/10 to-primary/5 relative">
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="text-6xl font-bold text-primary/10">
-            {room.name.charAt(0)}
+    <Card className="shadow-card hover:shadow-card-hover transition-all duration-300 overflow-hidden group hover:-translate-y-1 hover:scale-[1.02]">
+      <div className="h-44 relative overflow-hidden">
+        {roomImage ? (
+          <img
+            src={roomImage}
+            alt={room.name}
+            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+          />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-primary/20 via-primary/10 to-primary/5 flex items-center justify-center">
+            <div className="text-6xl font-bold text-primary/20">
+              {room.name.charAt(0)}
+            </div>
           </div>
-        </div>
-        <div className="absolute top-3 right-3">
+        )}
+        {/* Gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+        {/* Status badge */}
+        <div className="absolute top-3 right-3 z-10">
           <StatusBadge status={room.status} />
         </div>
+        {/* Maintenance overlay */}
+        {isUnderMaintenance && (
+          <div className="absolute inset-0 bg-amber-500/20 backdrop-blur-[1px] flex items-center justify-center">
+            <span className="bg-amber-500 text-white px-3 py-1 rounded-full text-sm font-medium shadow-lg">
+              Under Maintenance
+            </span>
+          </div>
+        )}
       </div>
       <CardContent className="p-5">
-        <h3 className="font-semibold text-lg mb-1">{room.name}</h3>
+        <h3 className="font-semibold text-lg mb-1 group-hover:text-primary transition-colors">{room.name}</h3>
         <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
-          <MapPin className="h-4 w-4" />
+          <MapPin className="h-4 w-4 text-primary/60" />
           <span>{room.location}</span>
         </div>
         <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
-          <Users className="h-4 w-4" />
+          <Users className="h-4 w-4 text-primary/60" />
           <span>Capacity: {room.capacity} people</span>
         </div>
         <div className="flex flex-wrap gap-1.5 mb-4">
@@ -75,14 +105,14 @@ const RoomCard: React.FC<{
             <Badge
               key={eq}
               variant="secondary"
-              className="text-xs flex items-center gap-1"
+              className="text-xs flex items-center gap-1 bg-primary/5 hover:bg-primary/10 transition-colors"
             >
               {equipmentIcons[eq]}
               {eq}
             </Badge>
           ))}
           {room.equipment.length > 3 && (
-            <Badge variant="secondary" className="text-xs">
+            <Badge variant="secondary" className="text-xs bg-primary/5">
               +{room.equipment.length - 3} more
             </Badge>
           )}
@@ -91,14 +121,14 @@ const RoomCard: React.FC<{
           <Button
             variant="outline"
             size="sm"
-            className="flex-1"
+            className="flex-1 hover:border-primary/50 hover:bg-primary/5 transition-all"
             onClick={onViewDetails}
           >
             View Schedule
           </Button>
           <Button
             size="sm"
-            className="flex-1"
+            className="flex-1 bg-gradient-to-r from-primary to-blue-600 hover:from-primary/90 hover:to-blue-600/90 shadow-md hover:shadow-lg transition-all"
             disabled={isUnderMaintenance}
             onClick={onBook}
           >
