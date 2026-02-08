@@ -1,21 +1,32 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBooking } from '@/context/BookingContext';
-import { 
-  Calendar, 
-  DoorOpen, 
-  Clock, 
-  Plus, 
-  CalendarDays, 
+import { getCurrentUser, setCurrentUser } from '@/lib/api';
+import {
+  Calendar,
+  DoorOpen,
+  Clock,
+  Plus,
+  CalendarDays,
   ClipboardList,
   Users,
-  TrendingUp
+  TrendingUp,
+  Shield,
+  User as UserIcon
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { format, isToday, isTomorrow, differenceInMinutes } from 'date-fns';
 import { StatusBadge } from '@/components/shared/StatusBadge';
-import { CardSkeleton } from '@/components/shared/LoadingSkeleton';
+import { toast } from '@/hooks/use-toast';
 
 const StatCard: React.FC<{
   title: string;
@@ -117,12 +128,6 @@ const UpcomingBookingCard: React.FC<{
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { bookings, rooms, getRoomById, loading } = useBooking();
-  const [isLoading, setIsLoading] = React.useState(true);
-
-  React.useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 500);
-    return () => clearTimeout(timer);
-  }, []);
 
   const now = new Date();
   const todayStart = new Date(now);
@@ -131,7 +136,7 @@ const Dashboard: React.FC = () => {
   todayEnd.setHours(23, 59, 59, 999);
 
   const activeBookings = bookings.filter(b => b.status === 'ACTIVE');
-  
+
   const bookingsToday = activeBookings.filter(
     b => b.startDateTime >= todayStart && b.startDateTime <= todayEnd
   );
@@ -149,22 +154,6 @@ const Dashboard: React.FC = () => {
   const availableRooms = rooms.filter(
     r => r.status === 'available' && !roomsInUse.has(r.id)
   );
-
-  if (isLoading) {
-    return (
-      <div className="space-y-8">
-        <div>
-          <h1 className="text-3xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground">Welcome to RoomBook</p>
-        </div>
-        <div className="grid gap-4 md:grid-cols-3">
-          <CardSkeleton />
-          <CardSkeleton />
-          <CardSkeleton />
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -214,12 +203,7 @@ const Dashboard: React.FC = () => {
             icon={<CalendarDays className="h-6 w-6 text-white" />}
             onClick={() => navigate('/schedule')}
           />
-          <QuickAction
-            title="Manage Bookings"
-            description="View and edit your bookings"
-            icon={<ClipboardList className="h-6 w-6 text-white" />}
-            onClick={() => navigate('/bookings')}
-          />
+
         </div>
       </div>
 
@@ -227,7 +211,7 @@ const Dashboard: React.FC = () => {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-semibold">Upcoming Bookings</h2>
-          <Button variant="ghost" size="sm" onClick={() => navigate('/bookings')}>
+          <Button variant="ghost" size="sm" onClick={() => navigate('/schedule')}>
             View all
           </Button>
         </div>
@@ -258,8 +242,8 @@ const Dashboard: React.FC = () => {
         <h2 className="text-xl font-semibold">Available Now</h2>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {availableRooms.slice(0, 3).map(room => (
-            <Card 
-              key={room.id} 
+            <Card
+              key={room.id}
               className="shadow-card hover:shadow-card-hover transition-all cursor-pointer"
               onClick={() => navigate(`/rooms?room=${room.id}`)}
             >

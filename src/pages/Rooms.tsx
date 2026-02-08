@@ -148,7 +148,6 @@ const Rooms: React.FC = () => {
   const [minCapacity, setMinCapacity] = useState<string>('');
   const [locationFilter, setLocationFilter] = useState<string>('');
   const [equipmentFilter, setEquipmentFilter] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
 
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -165,11 +164,6 @@ const Rooms: React.FC = () => {
       }
     }
   }, [searchParams, rooms]);
-
-  React.useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 500);
-    return () => clearTimeout(timer);
-  }, []);
 
   const locations = useMemo(() => {
     return [...new Set(rooms.map(r => r.location))];
@@ -223,22 +217,6 @@ const Rooms: React.FC = () => {
     setShowDetailModal(false);
     setShowBookingModal(true);
   };
-
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Rooms</h1>
-          <p className="text-muted-foreground">Browse and book meeting rooms</p>
-        </div>
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          <RoomCardSkeleton />
-          <RoomCardSkeleton />
-          <RoomCardSkeleton />
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6 animate-fade-in">

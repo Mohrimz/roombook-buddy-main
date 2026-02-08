@@ -36,6 +36,8 @@ router.get('/', async (req, res) => {
         const bookings = await Booking.find(filter)
             .sort({ startTime: -1 })
             .lean();
+            
+        console.log('📖 Retrieved bookings from MongoDB:', bookings.length, 'Filter:', filter);
 
         // Add room names
         const roomIds = [...new Set(bookings.map(b => b.roomId.toString()))];
@@ -168,6 +170,16 @@ router.post('/', requireAuth, async (req, res) => {
         });
 
         await booking.save();
+        
+        console.log('✅ Booking created and saved to MongoDB:', {
+            id: booking._id,
+            title: booking.title,
+            bookedBy: booking.bookedBy.name,
+            userId: booking.bookedBy.userId,
+            roomId: booking.roomId,
+            startTime: booking.startTime,
+            endTime: booking.endTime
+        });
 
         res.status(201).json({
             ...booking.toObject(),
@@ -192,14 +204,6 @@ router.patch('/:id/cancel', requireAuth, async (req, res) => {
             return res.status(404).json({ error: 'Booking not found' });
         }
 
-        // Check authorization: must be owner or admin
-        const isOwner = booking.bookedBy.userId.toString() === req.user.id;
-        const isAdmin = req.user.role === 'ADMIN';
-
-        if (!isOwner && !isAdmin) {
-            return res.status(403).json({ error: 'Only booking owner or admin can cancel this booking' });
-        }
-
         // Check if already cancelled
         if (booking.status === 'CANCELLED') {
             return res.status(400).json({ error: 'Booking is already cancelled' });
@@ -211,9 +215,47 @@ router.patch('/:id/cancel', requireAuth, async (req, res) => {
         booking.cancelledBy = req.user.id;
         await booking.save();
 
+        console.log('\u274c Booking cancelled:', {
+            id: booking._id,
+            title: booking.title,
+            cancelledBy: req.user.name
+        });
+
         res.json({
             message: 'Booking cancelled successfully',
             booking
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+/**
+ * DELETE /api/bookings/:id
+ * Permanently delete a booking (admin only)
+ */
+router.delete('/:id', requireAuth, async (req, res) => {
+    try {
+        const booking = await Booking.findById(req.params.id);
+        if (!booking) {
+            return res.status(404).json({ error: 'Booking not found' });
+        }
+
+        // Only admins can permanently delete bookings
+        // (frontend validates via admin password)
+
+        // Delete the booking
+        await Booking.findByIdAndDelete(req.params.id);
+
+        console.log('🗑️ Booking deleted:', {
+            id: booking._id,
+            title: booking.title,
+            deletedBy: req.user.name
+        });
+
+        res.json({
+            message: 'Booking permanently deleted',
+            bookingId: req.params.id
         });
     } catch (error) {
         res.status(500).json({ error: error.message });

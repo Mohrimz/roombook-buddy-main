@@ -93,8 +93,9 @@ interface BookingContextType {
   users: User[];
   currentUser: User | null;
   setCurrentUserById: (userId: string) => Promise<void>;
-  createBooking: (booking: Omit<Booking, 'id' | 'transferHistory'>) => Promise<{ success: boolean; error?: string; suggestedTime?: Date }>;
+  createBooking: (booking: Omit<Booking, 'id' | 'transferHistory'>, userOverride?: { id: string; name: string }) => Promise<{ success: boolean; error?: string; suggestedTime?: Date }>;
   cancelBooking: (bookingId: string) => Promise<void>;
+  deleteBooking: (bookingId: string) => Promise<void>;
   transferBooking: (bookingId: string, toUserId: string, reason?: string) => Promise<void>;
   checkConflict: (roomId: string, start: Date, end: Date, excludeBookingId?: string) => { hasConflict: boolean; nextAvailable?: Date };
   getBookingsForRoom: (roomId: string, showCancelled?: boolean) => Booking[];
@@ -137,15 +138,47 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
       setUsers(usersData.map(transformUser));
       setBookings(bookingsData.map(transformBooking));
 
+      console.log('📊 Fetched bookings:', bookingsData.length);
+      console.log('👥 Fetched users:', usersData.length);
+
       // Set default user if none selected
       const storedUser = getCurrentUser();
+      console.log('💾 Stored user from localStorage:', storedUser);
+      
       if (storedUser.id && usersData.length > 0) {
         const user = usersData.find(u => u._id === storedUser.id);
         if (user) {
+          console.log('✅ Found matching user in database:', user.fullName);
           setCurrentUserState(transformUser(user));
+        } else {
+          console.log('⚠️ User ID not found in database, but keeping current user from localStorage');
+          // User was created but not yet in the fetched data, keep the stored user
+          if (currentUser && currentUser.id === storedUser.id) {
+            // Keep existing currentUser state
+            console.log('  → Keeping existing currentUser state:', currentUser.name);
+          } else {
+            // Create user state from localStorage
+            setCurrentUserState({
+              id: storedUser.id,
+              name: storedUser.name,
+              email: '',
+              role: storedUser.role as 'USER' | 'ADMIN',
+            });
+          }
         }
-      } else if (usersData.length > 0) {
-        // Default to first admin user or first user
+      } else if (storedUser.name && storedUser.name !== 'Guest User') {
+        // User has a name set from booking but not a proper user ID
+        // Create a temporary user object
+        console.log('📝 Using stored user name:', storedUser.name);
+        setCurrentUserState({
+          id: storedUser.id,
+          name: storedUser.name,
+          email: '',
+          role: storedUser.role as 'USER' | 'ADMIN',
+        });
+      } else if (usersData.length > 0 && !currentUser) {
+        // Only set default if there's no current user at all
+        console.log('⚠️ No stored user and no current user, setting default');
         const defaultUser = usersData.find(u => u.role === 'ADMIN') || usersData[0];
         setCurrentUser({
           id: defaultUser._id,
@@ -222,7 +255,8 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
   }, [bookings]);
 
   const createBooking = useCallback(async (
-    bookingData: Omit<Booking, 'id' | 'transferHistory'>
+    bookingData: Omit<Booking, 'id' | 'transferHistory'>,
+    userOverride?: { id: string; name: string }
   ): Promise<{ success: boolean; error?: string; suggestedTime?: Date }> => {
     setLoading(true);
     try {
@@ -232,17 +266,26 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
         return { success: false, error: 'Room not found' };
       }
 
+      // Use override user info if provided, otherwise get from localStorage
+      const userInfo = userOverride || getCurrentUser();
+
       await bookingApi.create({
         roomId: room.id,
         title: bookingData.title,
         startTime: bookingData.startDateTime.toISOString(),
         endTime: bookingData.endDateTime.toISOString(),
         notes: bookingData.notes,
+        userId: userInfo.id,
+        userName: userInfo.name,
       });
 
       // Refresh bookings
       const newBookings = await bookingApi.getAll();
       setBookings(newBookings.map(transformBooking));
+      
+      console.log('✅ Booking created successfully!');
+      console.log('📊 Total bookings after creation:', newBookings.length);
+      console.log('👤 User bookings:', newBookings.filter(b => b.bookedBy.userId === userInfo.id).length);
 
       toast({
         title: 'Booking Created',
@@ -284,6 +327,31 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
       toast({
         title: 'Booking Cancelled',
         description: 'The booking has been cancelled.',
+      });
+    } catch (error) {
+      if (error instanceof ApiError) {
+        toast({
+          title: 'Error',
+          description: error.message,
+          variant: 'destructive',
+        });
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const deleteBooking = useCallback(async (bookingId: string) => {
+    setLoading(true);
+    try {
+      await bookingApi.delete(bookingId);
+
+      // Remove from local state
+      setBookings(prev => prev.filter(booking => booking.id !== bookingId));
+
+      toast({
+        title: 'Booking Deleted',
+        description: 'The booking has been permanently deleted.',
       });
     } catch (error) {
       if (error instanceof ApiError) {
@@ -380,6 +448,7 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
         setCurrentUserById,
         createBooking,
         cancelBooking,
+        deleteBooking,
         transferBooking,
         checkConflict,
         getBookingsForRoom,

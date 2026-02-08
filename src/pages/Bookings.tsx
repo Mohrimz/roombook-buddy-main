@@ -53,12 +53,6 @@ const Bookings: React.FC = () => {
   const [dateTo, setDateTo] = useState<Date | undefined>();
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [showNewBooking, setShowNewBooking] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-
-  React.useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 500);
-    return () => clearTimeout(timer);
-  }, []);
 
   const uniquePersons = useMemo(() => {
     return [...new Set(bookings.map(b => b.bookedBy))].sort();
@@ -109,36 +103,6 @@ const Bookings: React.FC = () => {
   };
 
   const hasActiveFilters = search || roomFilter !== 'all' || personFilter !== 'all' || statusFilter !== 'all' || dateFrom || dateTo;
-
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Bookings</h1>
-          <p className="text-muted-foreground">Manage all room bookings</p>
-        </div>
-        <Card className="shadow-card">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Title</TableHead>
-                <TableHead>Room</TableHead>
-                <TableHead>Booked By</TableHead>
-                <TableHead>Date & Time</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <TableRowSkeleton />
-              <TableRowSkeleton />
-              <TableRowSkeleton />
-            </TableBody>
-          </Table>
-        </Card>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6 animate-fade-in">

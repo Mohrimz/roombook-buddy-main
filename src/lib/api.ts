@@ -51,12 +51,14 @@ const getAuthHeaders = (): HeadersInit => {
  */
 async function apiFetch<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    customHeaders?: HeadersInit
 ): Promise<T> {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         ...options,
         headers: {
             ...getAuthHeaders(),
+            ...customHeaders,
             ...options.headers,
         },
     });
@@ -143,6 +145,10 @@ export interface User {
 export const userApi = {
     getAll: () => apiFetch<User[]>('/users'),
     getById: (id: string) => apiFetch<User>(`/users/${id}`),
+    findOrCreate: (fullName: string) => apiFetch<User>('/users/findOrCreate', {
+        method: 'POST',
+        body: JSON.stringify({ fullName }),
+    }),
 };
 
 // ============ Booking API ============
@@ -167,6 +173,8 @@ export interface CreateBookingRequest {
     roomId: string;
     title: string;
     startTime: string;
+    userId?: string;
+    userName?: string;
     endTime: string;
     notes?: string;
 }
@@ -207,15 +215,28 @@ export const bookingApi = {
 
     getById: (id: string) => apiFetch<BookingResponse>(`/bookings/${id}`),
 
-    create: (booking: CreateBookingRequest) =>
-        apiFetch<BookingResponse>('/bookings', {
+    create: (booking: CreateBookingRequest) => {
+        const customHeaders: HeadersInit = {};
+        if (booking.userId) {
+            customHeaders['x-user-id'] = booking.userId;
+        }
+        if (booking.userName) {
+            customHeaders['x-user-name'] = booking.userName;
+        }
+        return apiFetch<BookingResponse>('/bookings', {
             method: 'POST',
             body: JSON.stringify(booking),
-        }),
+        }, customHeaders);
+    },
 
     cancel: (id: string) =>
         apiFetch<{ message: string; booking: BookingResponse }>(`/bookings/${id}/cancel`, {
             method: 'PATCH',
+        }),
+
+    delete: (id: string) =>
+        apiFetch<{ message: string; bookingId: string }>(`/bookings/${id}`, {
+            method: 'DELETE',
         }),
 
     transfer: (id: string, toUserId: string, reason?: string) =>

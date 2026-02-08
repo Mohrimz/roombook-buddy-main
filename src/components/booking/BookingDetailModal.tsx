@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Booking } from '@/context/BookingContext';
 import { useBooking } from '@/context/BookingContext';
 import { format } from 'date-fns';
+import { getCurrentUser, setCurrentUser } from '@/lib/api';
 import {
   Dialog,
   DialogContent,
@@ -19,19 +20,21 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { TransferModal } from '@/components/booking/TransferModal';
 import {
   MapPin,
-  Users,
-  Clock,
   CalendarDays,
   User,
   FileText,
   X,
   ArrowRightLeft,
-  History
+  History,
+  Trash2,
+  Shield,
+  Lock
 } from 'lucide-react';
 
 interface BookingDetailModalProps {
@@ -40,24 +43,88 @@ interface BookingDetailModalProps {
   onClose: () => void;
 }
 
+const ADMIN_PASSWORD = 'saajid';
+
 export const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
   booking,
   open,
   onClose,
 }) => {
-  const { getRoomById, cancelBooking } = useBooking();
+  const { getRoomById, cancelBooking, deleteBooking } = useBooking();
   const room = getRoomById(booking.roomId);
 
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
+  const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
+  const [pendingAction, setPendingAction] = useState<'cancel' | 'delete' | 'transfer' | null>(null);
+  const [password, setPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
   const [isCancelling, setIsCancelling] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const handleCancel = async () => {
     setIsCancelling(true);
-    await cancelBooking(booking.id);
+    try {
+      // Temporarily elevate to admin for the API call
+      const prevUser = getCurrentUser();
+      setCurrentUser({ ...prevUser, role: 'ADMIN' });
+      await cancelBooking(booking.id);
+      setCurrentUser(prevUser);
+    } catch {
+      // restore user on error
+    }
     setIsCancelling(false);
     setShowCancelConfirm(false);
     onClose();
+  };
+
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    try {
+      // Temporarily elevate to admin for the API call
+      const prevUser = getCurrentUser();
+      setCurrentUser({ ...prevUser, role: 'ADMIN' });
+      await deleteBooking(booking.id);
+      setCurrentUser(prevUser);
+    } catch {
+      // restore user on error
+    }
+    setIsDeleting(false);
+    setShowDeleteConfirm(false);
+    onClose();
+  };
+
+  const handlePasswordSubmit = (e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
+
+    if (password === ADMIN_PASSWORD) {
+      const action = pendingAction;
+      setShowPasswordPrompt(false);
+      setPassword('');
+      setPasswordError('');
+      setPendingAction(null);
+
+      // Use setTimeout to let the password dialog fully close first
+      setTimeout(() => {
+        if (action === 'delete') {
+          setShowDeleteConfirm(true);
+        } else if (action === 'transfer') {
+          setShowTransferModal(true);
+        } else if (action === 'cancel') {
+          setShowCancelConfirm(true);
+        }
+      }, 100);
+    } else {
+      setPasswordError('Incorrect password. Please try again.');
+    }
+  };
+
+  const requestAdminAction = (action: 'cancel' | 'delete' | 'transfer') => {
+    setPendingAction(action);
+    setPassword('');
+    setPasswordError('');
+    setShowPasswordPrompt(true);
   };
 
   const isActive = booking.status === 'ACTIVE';
@@ -164,28 +231,104 @@ export const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
             )}
           </div>
 
-          {isActive && (
-            <div className="flex gap-3 pt-4 border-t">
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => setShowTransferModal(true)}
-              >
-                <ArrowRightLeft className="h-4 w-4 mr-2" />
-                Transfer
-              </Button>
+          {/* Admin Actions - always visible, password protected */}
+          <div className="space-y-3 pt-4 border-t">
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <Lock className="h-3 w-3" />
+              Admin actions require password
+            </p>
+            <div className="flex gap-3">
+              {isActive && (
+                <>
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => requestAdminAction('transfer')}
+                  >
+                    <ArrowRightLeft className="h-4 w-4 mr-2" />
+                    Transfer
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="flex-1 border-orange-500/30 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-500/10"
+                    onClick={() => requestAdminAction('cancel')}
+                  >
+                    <X className="h-4 w-4 mr-2" />
+                    Cancel
+                  </Button>
+                </>
+              )}
               <Button
                 variant="destructive"
-                className="flex-1"
-                onClick={() => setShowCancelConfirm(true)}
+                className="flex-1 bg-red-600 hover:bg-red-700"
+                onClick={() => requestAdminAction('delete')}
               >
-                <X className="h-4 w-4 mr-2" />
-                Cancel Booking
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
               </Button>
             </div>
-          )}
+          </div>
         </DialogContent>
       </Dialog>
+
+      {/* Admin Password Prompt */}
+      <AlertDialog open={showPasswordPrompt} onOpenChange={(open) => {
+        if (!open) {
+          setShowPasswordPrompt(false);
+          setPassword('');
+          setPasswordError('');
+          setPendingAction(null);
+        }
+      }}>
+        <AlertDialogContent className="bg-card">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5 text-primary" />
+              Admin Password Required
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Enter the admin password to{' '}
+              {pendingAction === 'delete' ? 'delete' : pendingAction === 'cancel' ? 'cancel' : 'transfer'}{' '}
+              this booking.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="admin-password">Password</Label>
+              <Input
+                id="admin-password"
+                type="password"
+                placeholder="Enter admin password"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setPasswordError('');
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handlePasswordSubmit();
+                  }
+                }}
+                className={passwordError ? 'border-destructive' : ''}
+                autoFocus
+              />
+              {passwordError && (
+                <p className="text-sm text-destructive">{passwordError}</p>
+              )}
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <Button
+              onClick={(e) => handlePasswordSubmit(e)}
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              Verify & Continue
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Cancel Confirmation */}
       <AlertDialog open={showCancelConfirm} onOpenChange={setShowCancelConfirm}>
@@ -193,7 +336,7 @@ export const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
           <AlertDialogHeader>
             <AlertDialogTitle>Cancel Booking?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to cancel "{booking.title}"? This action cannot be undone, but the booking record will be kept for reference.
+              Are you sure you want to cancel "{booking.title}"? The booking record will be kept for reference.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -204,6 +347,31 @@ export const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
               disabled={isCancelling}
             >
               {isCancelling ? 'Cancelling...' : 'Yes, Cancel Booking'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent className="bg-card">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Booking Permanently?</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p className="text-destructive font-semibold">Warning: This cannot be undone!</p>
+              <p>
+                You are about to permanently delete "{booking.title}" from the database.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep Booking</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-red-600 text-white hover:bg-red-700"
+              disabled={isDeleting}
+            >
+              {isDeleting ? 'Deleting...' : 'Yes, Delete Permanently'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

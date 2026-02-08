@@ -46,12 +46,6 @@ const Schedule: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [showCancelled, setShowCancelled] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  React.useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 500);
-    return () => clearTimeout(timer);
-  }, []);
 
   const dateRangeLabel = useMemo(() => {
     if (dateRange === 'today') return format(selectedDate, 'EEEE, MMMM d');
@@ -149,22 +143,6 @@ const Schedule: React.FC = () => {
   const navigateWeek = (direction: 'prev' | 'next') => {
     setSelectedDate(prev => addDays(prev, direction === 'next' ? 7 : -7));
   };
-
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Schedule</h1>
-          <p className="text-muted-foreground">View room availability and bookings</p>
-        </div>
-        <div className="space-y-3">
-          <BookingRowSkeleton />
-          <BookingRowSkeleton />
-          <BookingRowSkeleton />
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6 animate-fade-in">

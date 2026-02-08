@@ -1,10 +1,10 @@
 import React from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  DoorOpen, 
-  Calendar, 
-  ClipboardList,
+import {
+  LayoutDashboard,
+  DoorOpen,
+  Calendar,
+  Shield,
   Menu,
   X
 } from 'lucide-react';
@@ -12,11 +12,16 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
+// Main navigation for regular users
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Rooms', href: '/rooms', icon: DoorOpen },
   { name: 'Schedule', href: '/schedule', icon: Calendar },
-  { name: 'Bookings', href: '/bookings', icon: ClipboardList },
+];
+
+// Admin navigation (separate section)
+const adminNavigation = [
+  { name: 'Admin', href: '/admin', icon: Shield },
 ];
 
 const NavItem: React.FC<{
@@ -57,6 +62,16 @@ const DesktopSidebar: React.FC = () => (
       {navigation.map((item) => (
         <NavItem key={item.name} item={item} />
       ))}
+
+      {/* Admin Section Divider */}
+      <div className="pt-4 mt-4 border-t border-sidebar-border">
+        <p className="px-3 mb-2 text-xs font-medium text-sidebar-foreground/40 uppercase tracking-wider">
+          Admin
+        </p>
+        {adminNavigation.map((item) => (
+          <NavItem key={item.name} item={item} />
+        ))}
+      </div>
     </nav>
     <div className="p-4 border-t border-sidebar-border">
       <p className="text-xs text-sidebar-foreground/50">
@@ -86,13 +101,28 @@ const MobileNav: React.FC = () => {
           </div>
           <nav className="flex-1 px-4 py-6 space-y-1">
             {navigation.map((item) => (
-              <NavItem 
-                key={item.name} 
-                item={item} 
-                mobile 
-                onClick={() => setOpen(false)} 
+              <NavItem
+                key={item.name}
+                item={item}
+                mobile
+                onClick={() => setOpen(false)}
               />
             ))}
+
+            {/* Admin Section Divider */}
+            <div className="pt-4 mt-4 border-t border-sidebar-border">
+              <p className="px-3 mb-2 text-xs font-medium text-sidebar-foreground/40 uppercase tracking-wider">
+                Admin
+              </p>
+              {adminNavigation.map((item) => (
+                <NavItem
+                  key={item.name}
+                  item={item}
+                  mobile
+                  onClick={() => setOpen(false)}
+                />
+              ))}
+            </div>
           </nav>
         </SheetContent>
       </Sheet>

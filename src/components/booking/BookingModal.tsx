@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Room } from '@/context/BookingContext';
 import { useBooking } from '@/context/BookingContext';
+import { setCurrentUser, userApi } from '@/lib/api';
 import { format, addMinutes, setHours, setMinutes, addDays, isBefore } from 'date-fns';
 import {
   Dialog,
@@ -51,7 +52,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   onClose,
   initialDate,
 }) => {
-  const { rooms, users, createBooking, checkConflict } = useBooking();
+  const { rooms, users, createBooking, checkConflict, refreshData } = useBooking();
 
   const [selectedRoom, setSelectedRoom] = useState<string>(room?.id || '');
   const [title, setTitle] = useState('');
@@ -135,26 +136,52 @@ export const BookingModal: React.FC<BookingModalProps> = ({
     setConflictError(null);
     setSuggestedTime(null);
 
-    const result = await createBooking({
-      roomId: selectedRoom,
-      title: title.trim(),
-      bookedBy: bookedBy.trim(),
-      startDateTime: start,
-      endDateTime: end,
-      status: 'ACTIVE',
-      notes: notes.trim() || undefined,
-    });
+    try {
+      // First, find or create the user with the typed name
+      console.log('🔍 Finding/creating user:', bookedBy.trim());
+      const user = await userApi.findOrCreate(bookedBy.trim());
+      console.log('✅ User found/created:', user.fullName, 'ID:', user._id);
+      
+      // Set the current user based on the found/created user
+      // This ensures subsequent requests use the correct user
+      setCurrentUser({
+        id: user._id,
+        name: user.fullName,
+        role: user.role
+      });
+      console.log('💾 Saved to localStorage:', user.fullName);
 
-    setIsSubmitting(false);
+      // Create the booking, explicitly passing the user info
+      console.log('📝 Creating booking with user:', user.fullName, 'ID:', user._id);
+      const result = await createBooking({
+        roomId: selectedRoom,
+        title: title.trim(),
+        bookedBy: user.fullName,
+        startDateTime: start,
+        endDateTime: end,
+        status: 'ACTIVE',
+        notes: notes.trim() || undefined,
+      }, {
+        id: user._id,
+        name: user.fullName
+      });
 
-    if (result.success) {
-      onClose();
-      resetForm();
-    } else {
-      setConflictError(result.error || 'Failed to create booking');
-      if (result.suggestedTime) {
-        setSuggestedTime(result.suggestedTime);
+      setIsSubmitting(false);
+
+      if (result.success) {
+        // Refresh data to get updated bookings and current user info
+        await refreshData();
+        onClose();
+        resetForm();
+      } else {
+        setConflictError(result.error || 'Failed to create booking');
+        if (result.suggestedTime) {
+          setSuggestedTime(result.suggestedTime);
+        }
       }
+    } catch (error) {
+      setIsSubmitting(false);
+      setConflictError('Failed to create user or booking. Please try again.');
     }
   };
 
@@ -230,18 +257,13 @@ export const BookingModal: React.FC<BookingModalProps> = ({
           {/* Booked By */}
           <div className="space-y-2">
             <Label htmlFor="bookedBy">Booked By *</Label>
-            <Select value={bookedBy} onValueChange={setBookedBy}>
-              <SelectTrigger className={cn(errors.bookedBy && 'border-destructive')}>
-                <SelectValue placeholder="Select or type a name" />
-              </SelectTrigger>
-              <SelectContent className="bg-card">
-                {users.map(user => (
-                  <SelectItem key={user.id} value={user.name}>
-                    {user.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Input
+              id="bookedBy"
+              placeholder="Enter your name"
+              value={bookedBy}
+              onChange={(e) => setBookedBy(e.target.value)}
+              className={cn(errors.bookedBy && 'border-destructive')}
+            />
             {errors.bookedBy && (
               <p className="text-sm text-destructive">{errors.bookedBy}</p>
             )}

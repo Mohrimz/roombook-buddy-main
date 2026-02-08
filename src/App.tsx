@@ -8,7 +8,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import Dashboard from "./pages/Dashboard";
 import Rooms from "./pages/Rooms";
 import Schedule from "./pages/Schedule";
-import Bookings from "./pages/Bookings";
+import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -25,7 +25,7 @@ const App = () => (
               <Route path="/" element={<Dashboard />} />
               <Route path="/rooms" element={<Rooms />} />
               <Route path="/schedule" element={<Schedule />} />
-              <Route path="/bookings" element={<Bookings />} />
+              <Route path="/admin" element={<Admin />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
@@ -36,3 +36,4 @@ const App = () => (
 );
 
 export default App;
+
